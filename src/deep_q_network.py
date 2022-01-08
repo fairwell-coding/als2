@@ -155,12 +155,10 @@ def policy(state, is_training):
     global eps
     state = convert(state).unsqueeze(0).to(device)
 
-    # if is_training and np.random.uniform(0, 1) < eps:  # choose actions deterministically during test phase
-    #     return np.random.choice(num_actions)  # return a random action with probability epsilon
-    # else:
-    #     return np.argmax(online_dqn[state, :])  # otherwise return the action that maximizes Q
-
-    return np.random.choice(num_actions)  # return a random action with probability epsilon
+    if is_training and np.random.uniform(0, 1) < eps:  # choose actions deterministically during test phase
+        return np.random.choice(num_actions)  # return a random action with probability epsilon
+    else:
+        return np.argmax(online_dqn[state, :])  # otherwise return the action that maximizes Q
 
 
 def compute_loss(state, action, reward, next_state, done):
@@ -170,15 +168,10 @@ def compute_loss(state, action, reward, next_state, done):
     reward = reward.to(device)
     done = done.to(device)
 
-    print('x')
+    predicted = torch.gather(online_dqn(state), 0, torch.tensor(np.int64(action)).unsqueeze(-1)).squeeze(-1)
+    expected = reward + gamma * target_dqn(next_state).max(1)[0]
 
-    state_action_values = online_dqn(state)
-
-    # criterion()
-
-    # TODO: Compute the DQN (or DDQN) loss based on the criterion
-    # ...
-    return 0.0  # TODO: change dummy loss
+    return criterion(expected, predicted)
 
 
 def run_episode(curr_step, buffer, is_training, is_rendering=False):
