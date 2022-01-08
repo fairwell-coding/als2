@@ -197,10 +197,8 @@ def run_episode(curr_step, buffer, is_training, is_rendering=False):
             if curr_step > burn_in_phase:
                 state_batch, next_state_batch, action_batch, reward_batch, done_batch = buffer.sample(batch_size)
 
-                # if curr_step % sync_target == 0:
-                #     # TODO: Periodically update your target_dqn at each sync_target frames
-                #     # ...
-                #     pass
+                if curr_step % sync_target == 0:
+                    target_dqn.load_state_dict(online_dqn.state_dict())
 
                 loss = compute_loss(state_batch, action_batch, reward_batch, next_state_batch, done_batch)
                 optimizer.zero_grad()
