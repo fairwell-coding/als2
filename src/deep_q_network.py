@@ -12,6 +12,11 @@ from collections import deque
 import copy
 from gym.wrappers import FrameStack
 
+# TODO issues:
+#  - grad cast to same size (32 bit)
+#  - Done bei policy
+#  - Mby regularization
+
 
 class SkipFrame(gym.Wrapper):
     def __init__(self, env, skip):
@@ -164,8 +169,8 @@ def policy(state, is_training):
 def compute_loss(state, action, reward, next_state, done):
     state = convert(state).to(device)
     next_state = convert(next_state).to(device)
-    action = action.to(device)
-    reward = reward.to(device)
+    action = convert(action).to(device)
+    reward = convert(reward).to(device)
     done = done.to(device)
 
     predicted = torch.gather(online_dqn(state), 0, torch.tensor(np.int64(action)).unsqueeze(-1)).squeeze(-1)
