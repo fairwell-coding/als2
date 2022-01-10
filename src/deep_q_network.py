@@ -13,6 +13,8 @@ import copy
 from gym.wrappers import FrameStack
 
 
+# TODO remove me, im just a test push.
+
 class SkipFrame(gym.Wrapper):
     def __init__(self, env, skip):
         super().__init__(env)
