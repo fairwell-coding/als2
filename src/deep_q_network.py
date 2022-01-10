@@ -12,11 +12,6 @@ from collections import deque
 import copy
 from gym.wrappers import FrameStack
 
-# TODO issues:
-#  - grad cast to same size (32 bit)
-#  - Done bei policy
-#  - Mby regularization
-
 
 class SkipFrame(gym.Wrapper):
     def __init__(self, env, skip):
@@ -148,7 +143,7 @@ for param in target_dqn.dense_net.parameters():
 online_dqn.to(device)
 target_dqn.to(device)
 
-optimizer = optim.Adam(online_dqn.parameters(), lr=1e-4)
+optimizer = optim.Adam(online_dqn.parameters(), lr=alpha)
 criterion = nn.MSELoss()
 
 
@@ -163,14 +158,16 @@ def policy(state, is_training):
     if is_training and np.random.uniform(0, 1) < eps:  # choose actions deterministically during test phase
         return np.random.choice(num_actions)  # return a random action with probability epsilon
     else:
-        return np.argmax(online_dqn[state, :])  # otherwise return the action that maximizes Q
+        q = online_dqn(state)[0]
+        with torch.no_grad():
+            return np.argmax(q)  # otherwise return the action that maximizes Q
 
 
 def compute_loss(state, action, reward, next_state, done):
     state = convert(state).to(device)
     next_state = convert(next_state).to(device)
-    action = convert(action).to(device)
-    reward = convert(reward).to(device)
+    action = convert(action.to(device))
+    reward = convert(reward.to(device))
     done = done.to(device)
 
     predicted = torch.gather(online_dqn(state), 0, torch.tensor(np.int64(action)).unsqueeze(-1)).squeeze(-1)
