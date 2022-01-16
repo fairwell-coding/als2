@@ -215,7 +215,7 @@ def compute_loss(state, action, reward, next_state, done, multi_step_rewards):
     done = done.to(device)
 
     for rewards in multi_step_rewards:
-        rewards = convert(rewards.to(device))
+        convert(rewards.to(device))
 
     predicted = torch.gather(online_dqn(state), 0, torch.tensor(np.int64(action)).unsqueeze(-1)).squeeze(-1)
 
