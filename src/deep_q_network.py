@@ -11,12 +11,29 @@ from gym.spaces import Box
 from collections import deque
 import copy
 from gym.wrappers import FrameStack
+from os import path, getcwd
 
-
-multi_step_learning = False  # switch parameter to perform single step or multi step learning
+# ============================ Switchable parameters ==========================
+run_as_ddqn = False  # switch parameter to perform dqn or ddqn learning.
+multi_step_learning = True  # switch parameter to perform single step or multi step learning
 num_multi_step_learning = 3  # number of multi-learning steps used to compute loss
 
-prioritized_experience_replay = True  # defines whether experience replay samples uniformly or prioritize samples from which more can be learned
+prioritized_experience_replay = False  # defines whether experience replay samples uniformly or prioritize samples from which more can be learned
+
+
+# ============================ Helper functions ===============================
+def plot_test_episode(filename, frame_number, accumulated_reward):
+    plt.subplots()
+    plt.xlabel("frame_number")
+    plt.ylabel("accumulated_reward")
+    plt.title("Test results")
+
+    plt.plot(
+        frame_number,
+        accumulated_reward,
+    )
+    plt.savefig(filename)
+    plt.show()
 
 
 class SkipFrame(gym.Wrapper):
@@ -86,6 +103,12 @@ class ExperienceReplayMemory(object):
         self.multi_step_queue.append(reward_tensor)
 
         return state_tensor, next_state, action_tensor, reward_tensor, done_tensor, self.multi_step_queue
+
+
+class DeepQNet3(nn.Module):
+    # Nach jedem pooling dropout
+    # 3. pooling mit kernel size 3,3 stride 3,3
+    pass
 
 
 class DeepQNet2(nn.Module):
@@ -168,10 +191,18 @@ batch_size = 32
 alpha = 0.00025
 gamma = 0.99
 eps, eps_decay = 1.0, 0.999
-max_train_episodes = 500  # TODO: potentially increase or change back to original value: 1000000
-max_test_episodes = 10
-max_train_frames = 10000  # TODO: set to original value = 10000
-burn_in_phase = 50000  # TODO: set to original value = 50000
+# Original values:
+# max_train_episodes = 1000000
+# max_test_episodes = 10
+# max_train_frames = 10000
+# burn_in_phase = 50000
+
+# Test values:
+max_train_episodes = 21  # TODO: change back to original value 1000000
+max_test_episodes = 5   # TODO: change back to original value 10
+max_train_frames = 100  # TODO: change back to original 10000
+burn_in_phase = 50000  # TODO: change back to original value 50000
+
 sync_target = 10000
 curr_step = 0
 buffer = ExperienceReplayMemory(50000)  # TODO: set to original value = 50000
@@ -218,8 +249,10 @@ def compute_loss(state, action, reward, next_state, done, multi_step_rewards):
         convert(rewards.to(device))
 
     predicted = torch.gather(online_dqn(state), 0, torch.tensor(np.int64(action)).unsqueeze(-1)).squeeze(-1)
-
-    if multi_step_learning:
+    if run_as_ddqn:
+        action_from_online_network = online_dqn(next_state).max(1).indices
+        expected = reward + gamma * torch.gather(target_dqn(next_state), 0, action_from_online_network.unsqueeze(-1)).squeeze(-1)
+    elif multi_step_learning:
         expected = __perform_multi_step_learning(next_state, multi_step_rewards)
     else:
         expected = __perform_single_step_learning(next_state, reward)
@@ -248,6 +281,7 @@ def run_episode(curr_step, buffer, is_training, is_rendering=False):
     if is_rendering:
         env.render("rgb_array")
 
+    accumulated_rewards = []
     for t in range(max_train_frames):
         action = policy(state, is_training)
         curr_step += 1
@@ -257,6 +291,7 @@ def run_episode(curr_step, buffer, is_training, is_rendering=False):
             env.render("rgb_array")
 
         episode_reward += reward
+        accumulated_rewards.append(episode_reward)
 
         if is_training:
             buffer.store(state, next_state, action, reward, done)
@@ -274,14 +309,17 @@ def run_episode(curr_step, buffer, is_training, is_rendering=False):
                 episode_loss += loss.item()
         else:
             with torch.no_grad():
-                episode_loss += compute_loss(state, action, reward, next_state, done, multi_step_rewards).item()
+                buffer.store(state, next_state, action, reward, done)
+                state_batch, next_state_batch, action_batch, reward_batch, done_batch, multi_step_rewards = buffer.sample(batch_size)
+
+                episode_loss += compute_loss(state_batch, action_batch, reward_batch, next_state_batch, done_batch, multi_step_rewards).item()
 
         state = next_state
 
         if done:
             break
 
-    return dict(reward=episode_reward, loss=episode_loss / t), curr_step
+    return dict(reward=episode_reward, loss=episode_loss / t), curr_step, accumulated_rewards
 
 
 def update_metrics(metrics, episode):
@@ -300,7 +338,7 @@ def __train():
     global curr_step, eps
     train_metrics = dict(reward=[], loss=[])
     for it in range(max_train_episodes):
-        episode_metrics, curr_step = run_episode(curr_step, buffer, is_training=True)
+        episode_metrics, curr_step, _ = run_episode(curr_step, buffer, is_training=True)
         update_metrics(train_metrics, episode_metrics)
         if it % 10 == 0:
             print_metrics(it, train_metrics, is_training=True)
@@ -311,16 +349,16 @@ def __test():
     global curr_step
     test_metrics = dict(reward=[], loss=[])
     for it in range(max_test_episodes):
-        episode_metrics, curr_step = run_episode(curr_step, buffer, is_training=False)
+        episode_metrics, curr_step, accumulated_rewards = run_episode(curr_step, buffer, is_training=False)
         update_metrics(test_metrics, episode_metrics)
         print_metrics(it + 1, test_metrics, is_training=False)
+        filepath = path.join(getcwd(), f"output/test_plot_iteration_{it}")
+        plot_test_episode(filepath, np.arange(1, max_train_frames + 1), accumulated_rewards)
 
 
 if __name__ == '__main__':
-
-
     __train()
-    # __test()
+    __test()
 
     print('x')
 
