@@ -22,7 +22,7 @@ prioritized_experience_replay = False  # defines whether experience replay sampl
 
 
 # ============================ Helper functions ===============================
-def plot_test_episode(filename, frame_number, accumulated_reward):
+def plot_test_episode(filename, frame_number, accumulated_reward, it):
     plt.subplots()
     plt.xlabel("frame_number")
     plt.ylabel("accumulated_reward")
@@ -32,6 +32,7 @@ def plot_test_episode(filename, frame_number, accumulated_reward):
         frame_number,
         accumulated_reward,
     )
+    filepath = path.join(getcwd(), "output", f"test_plotiteration{it + 1}")
     plt.savefig(filename)
     plt.show()
 
@@ -421,13 +422,13 @@ eps, eps_decay = 1.0, 0.999
 
 # Test values:
 max_train_episodes = 250  # TODO: change back to original value 1000000
-max_test_episodes = 10   # TODO: change back to original value 10
+max_test_episodes = 5   # TODO: change back to original value 10
 max_train_frames = 10000  # TODO: change back to original 10000
-burn_in_phase = 50000  # TODO: change back to original value 50000
+burn_in_phase = 320  # TODO: change back to original value 50000
 
 sync_target = 10000
 curr_step = 0
-buffer = ExperienceReplayMemory(50000)  # TODO: set to original value = 50000
+buffer = ExperienceReplayMemory(320)  # TODO: set to original value = 50000
 
 online_dqn = DeepQNet6(h, w, image_stack, num_actions)
 target_dqn = copy.deepcopy(online_dqn)
@@ -473,14 +474,35 @@ def compute_loss(state, action, reward, next_state, done, multi_step_rewards):
 
     predicted = torch.gather(online_dqn(state), 0, torch.tensor(np.int64(action)).unsqueeze(-1)).squeeze(-1)
     if run_as_ddqn:
-        action_from_online_network = online_dqn(next_state).max(1).indices
-        expected = reward + gamma * torch.gather(target_dqn(next_state), 0, action_from_online_network.unsqueeze(-1)).squeeze(-1)
-    elif multi_step_learning:
-        expected = __perform_multi_step_learning(next_state, multi_step_rewards)
+        if multi_step_learning:
+            expected = __perform_multi_step_learning_for_ddqn(multi_step_rewards, next_state)
+        else:
+            expected = __perform_single_step_learning_for_ddqn(next_state, reward)
     else:
-        expected = __perform_single_step_learning(next_state, reward)
+        if multi_step_learning:
+            expected = __perform_multi_step_learning(next_state, multi_step_rewards)
+        else:
+            expected = __perform_single_step_learning(next_state, reward)
 
     return criterion(expected, predicted)
+
+
+def __perform_single_step_learning_for_ddqn(next_state, reward):
+    action_from_online_network = online_dqn(next_state).max(1).indices
+    expected = reward + gamma * torch.gather(target_dqn(next_state), 0, action_from_online_network.unsqueeze(-1)).squeeze(-1)
+
+    return expected
+
+
+def __perform_multi_step_learning_for_ddqn(multi_step_rewards, next_state):
+    reward = torch.zeros(size=(32,), dtype=torch.float32)
+    for single_step_reward in multi_step_rewards:
+        reward += gamma * single_step_reward
+
+    action_from_online_network = online_dqn(next_state).max(1).indices
+    expected = reward + gamma * torch.gather(target_dqn(next_state), 0, action_from_online_network.unsqueeze(-1)).squeeze(-1)
+
+    return expected
 
 
 def __perform_multi_step_learning(next_state, multi_step_rewards):
@@ -576,7 +598,7 @@ def __test():
         update_metrics(test_metrics, episode_metrics)
         print_metrics(it + 1, test_metrics, is_training=False)
         filepath = path.join(getcwd(), f"output/test_plot_iteration_{it + 1}")
-        plot_test_episode(filepath, np.arange(1, len(accumulated_rewards) + 1), accumulated_rewards)
+        plot_test_episode(filepath, np.arange(1, len(accumulated_rewards) + 1), accumulated_rewards, it)
 
 
 if __name__ == '__main__':
