@@ -105,10 +105,128 @@ class ExperienceReplayMemory(object):
         return state_tensor, next_state, action_tensor, reward_tensor, done_tensor, self.multi_step_queue
 
 
+# This model is using a batch normalization layer.
+class DeepQNet5(nn.Module):
+    def __init__(self, h, w, image_stack, num_actions):
+        super().__init__()
+
+        num_output_filters = 256
+
+        self.conv_net = nn.Sequential(OrderedDict([
+            ('conv2d_1',
+             nn.Conv2d(image_stack, 16, kernel_size=(3, 3), stride=(1, 1), padding='same', padding_mode='zeros')),
+            ('relu_1', nn.ReLU()),
+            ('max2d_pooling_1', nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))),
+            ('batch_normalization_1', nn.BatchNorm2d(16)),
+
+            ('conv2d_2', nn.Conv2d(16, 64, kernel_size=(3, 3), stride=(1, 1), padding='same',
+                                   padding_mode='zeros')),
+            ('relu_2', nn.ReLU()),
+            ('max2d_pooling_2', nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))),
+            ('batch_normalization_2', nn.BatchNorm2d(64)),
+
+            ('conv2d_3', nn.Conv2d(64, num_output_filters, kernel_size=(3, 3), stride=(1, 1), padding='same',
+                                   padding_mode='zeros')),
+            ('relu_3', nn.ReLU()),
+            ('max2d_pooling_3', nn.MaxPool2d(kernel_size=(3, 3), stride=(3, 3))),
+            ('batch_normalization_3', nn.BatchNorm2d(num_output_filters)),
+
+            ('flatten', nn.Flatten())
+        ]))
+
+        num_hidden = 32
+
+        self.dense_net = nn.Sequential(OrderedDict([
+            ('dense_1', nn.Linear(int(num_output_filters * (h / 2**2 / 3) * (w / 2**2 / 3)), num_hidden)),
+            ('dense_2', nn.Linear(num_hidden, num_actions)),
+        ]))
+
+    def forward(self, x):
+        return self.dense_net(self.conv_net(x))
+
+
+# This model is using the tanh activation function
+class DeepQNet4(nn.Module):
+    def __init__(self, h, w, image_stack, num_actions):
+        super().__init__()
+
+        num_output_filters = 256
+
+        self.conv_net = nn.Sequential(OrderedDict([
+            ('conv2d_1',
+             nn.Conv2d(image_stack, 16, kernel_size=(3, 3), stride=(1, 1), padding='same', padding_mode='zeros')),
+            ('tanh_1', nn.Tanh()),
+            ('max2d_pooling_1', nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))),
+            ('dropout_1', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('conv2d_2', nn.Conv2d(16, 64, kernel_size=(3, 3), stride=(1, 1), padding='same',
+                                   padding_mode='zeros')),
+            ('tanh_2', nn.Tanh()),
+            ('max2d_pooling_2', nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))),
+            ('dropout_2', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('conv2d_3', nn.Conv2d(64, num_output_filters, kernel_size=(3, 3), stride=(1, 1), padding='same',
+                                   padding_mode='zeros')),
+            ('tanh_3', nn.Tanh()),
+            ('max2d_pooling_3', nn.MaxPool2d(kernel_size=(3, 3), stride=(3, 3))),
+            ('dropout_3', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('flatten', nn.Flatten())
+        ]))
+
+        num_hidden = 32
+
+        self.dense_net = nn.Sequential(OrderedDict([
+            ('dense_1', nn.Linear(int(num_output_filters * (h / 2**2 / 3) * (w / 2**2 / 3)), num_hidden)),
+            ('dropout_1', nn.Dropout(0.5)),
+            ('dense_2', nn.Linear(num_hidden, num_actions)),
+            ('dropout_1', nn.Dropout(0.5))
+        ]))
+
+    def forward(self, x):
+        return self.dense_net(self.conv_net(x))
+
+
+# This is the best performing model.
 class DeepQNet3(nn.Module):
-    # Nach jedem pooling dropout
-    # 3. pooling mit kernel size 3,3 stride 3,3
-    pass
+    def __init__(self, h, w, image_stack, num_actions):
+        super().__init__()
+
+        num_output_filters = 256
+
+        self.conv_net = nn.Sequential(OrderedDict([
+            ('conv2d_1',
+             nn.Conv2d(image_stack, 16, kernel_size=(3, 3), stride=(1, 1), padding='same', padding_mode='zeros')),
+            ('relu_1', nn.ReLU()),
+            ('max2d_pooling_1', nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))),
+            ('dropout_1', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('conv2d_2', nn.Conv2d(16, 64, kernel_size=(3, 3), stride=(1, 1), padding='same',
+                                   padding_mode='zeros')),
+            ('relu_2', nn.ReLU()),
+            ('max2d_pooling_2', nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))),
+            ('dropout_2', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('conv2d_3', nn.Conv2d(64, num_output_filters, kernel_size=(3, 3), stride=(1, 1), padding='same',
+                                   padding_mode='zeros')),
+            ('relu_3', nn.ReLU()),
+            ('max2d_pooling_3', nn.MaxPool2d(kernel_size=(3, 3), stride=(3, 3))),
+            ('dropout_3', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('flatten', nn.Flatten())
+        ]))
+
+        num_hidden = 32
+
+        self.dense_net = nn.Sequential(OrderedDict([
+            ('dense_1', nn.Linear(int(num_output_filters * (h / 2**2 / 3) * (w / 2**2 / 3)), num_hidden)),
+            ('dropout_1', nn.Dropout(0.5)),
+            ('dense_2', nn.Linear(num_hidden, num_actions)),
+            ('dropout_1', nn.Dropout(0.5))
+        ]))
+
+    def forward(self, x):
+        return self.dense_net(self.conv_net(x))
 
 
 class DeepQNet2(nn.Module):
@@ -192,22 +310,22 @@ alpha = 0.00025
 gamma = 0.99
 eps, eps_decay = 1.0, 0.999
 # Original values:
-# max_train_episodes = 1000000
-# max_test_episodes = 10
-# max_train_frames = 10000
-# burn_in_phase = 50000
+max_train_episodes = 1000000
+max_test_episodes = 10
+max_train_frames = 10000
+burn_in_phase = 50000
 
 # Test values:
-max_train_episodes = 21  # TODO: change back to original value 1000000
-max_test_episodes = 5   # TODO: change back to original value 10
-max_train_frames = 100  # TODO: change back to original 10000
-burn_in_phase = 50000  # TODO: change back to original value 50000
+# max_train_episodes = 200  # TODO: change back to original value 1000000
+# max_test_episodes = 5   # TODO: change back to original value 10
+# max_train_frames = 100  # TODO: change back to original 10000
+# burn_in_phase = 50000  # TODO: change back to original value 50000
 
 sync_target = 10000
 curr_step = 0
 buffer = ExperienceReplayMemory(50000)  # TODO: set to original value = 50000
 
-online_dqn = DeepQNet2(h, w, image_stack, num_actions)
+online_dqn = DeepQNet3(h, w, image_stack, num_actions)
 target_dqn = copy.deepcopy(online_dqn)
 for param in target_dqn.conv_net.parameters():
     param.requires_grad = False
@@ -220,6 +338,7 @@ target_dqn.to(device)
 optimizer = optim.Adam(online_dqn.parameters(), lr=alpha)
 # criterion = nn.MSELoss()  # used for task 1a,1b
 criterion = torch.nn.HuberLoss()  # used for task 1c
+
 
 def convert(x):
     return torch.tensor(x.__array__()).float()
@@ -352,7 +471,7 @@ def __test():
         episode_metrics, curr_step, accumulated_rewards = run_episode(curr_step, buffer, is_training=False)
         update_metrics(test_metrics, episode_metrics)
         print_metrics(it + 1, test_metrics, is_training=False)
-        filepath = path.join(getcwd(), f"output/test_plot_iteration_{it}")
+        filepath = path.join(getcwd(), f"output/test_plot_iteration_{it + 1}")
         plot_test_episode(filepath, np.arange(1, max_train_frames + 1), accumulated_rewards)
 
 
