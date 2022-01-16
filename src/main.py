@@ -12,4 +12,4 @@ if __name__ == "__main__":
     # samples = exp_replay.sample(2)
 
     __train()
-    # __test()
+    __test()
