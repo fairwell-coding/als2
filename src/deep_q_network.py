@@ -14,7 +14,7 @@ from gym.wrappers import FrameStack
 from os import path, getcwd
 
 # ============================ Switchable parameters ==========================
-run_as_ddqn = False  # switch parameter to perform dqn or ddqn learning.
+run_as_ddqn = True  # switch parameter to perform dqn or ddqn learning.
 multi_step_learning = True  # switch parameter to perform single step or multi step learning
 num_multi_step_learning = 3  # number of multi-learning steps used to compute loss
 
@@ -103,6 +103,110 @@ class ExperienceReplayMemory(object):
         self.multi_step_queue.append(reward_tensor)
 
         return state_tensor, next_state, action_tensor, reward_tensor, done_tensor, self.multi_step_queue
+
+
+class DeepQNet8(nn.Module):
+    def __init__(self, h, w, image_stack, num_actions):
+        super().__init__()
+
+        num_output_filters = 4
+
+        self.conv_net = nn.Sequential(OrderedDict([
+            ('conv2d_1',
+             nn.Conv2d(image_stack, num_output_filters, kernel_size=(2, 2), stride=(1, 1), padding='same', padding_mode='zeros')),
+            ('relu_1', nn.ReLU()),
+            ('max2d_pooling_1', nn.MaxPool2d(kernel_size=(2, 2), stride=(7, 7))),
+            ('dropout_1', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('flatten', nn.Flatten())
+        ]))
+
+        num_hidden = 16
+
+        self.dense_net = nn.Sequential(OrderedDict([
+            ('dense_1', nn.Linear(int(num_output_filters * (h / 7) * (w / 7)), num_actions)),
+            ('dropout_1', nn.Dropout(0.5)),
+        ]))
+
+    def forward(self, x):
+        return self.dense_net(self.conv_net(x))
+
+
+class DeepQNet7(nn.Module):
+    def __init__(self, h, w, image_stack, num_actions):
+        super().__init__()
+
+        num_output_filters = 16
+
+        self.conv_net = nn.Sequential(OrderedDict([
+            ('conv2d_1',
+             nn.Conv2d(image_stack, 4, kernel_size=(6, 6), stride=(1, 1), padding='same', padding_mode='zeros')),
+            ('relu_1', nn.ReLU()),
+            ('max2d_pooling_1', nn.MaxPool2d(kernel_size=(2, 2), stride=(4, 4))),
+            ('dropout_1', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+
+            ('conv2d_3', nn.Conv2d(4, num_output_filters, kernel_size=(3, 3), stride=(1, 1), padding='same',
+                                   padding_mode='zeros')),
+            ('relu_3', nn.ReLU()),
+            ('max2d_pooling_3', nn.MaxPool2d(kernel_size=(3, 3), stride=(3, 3))),
+            ('dropout_3', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('flatten', nn.Flatten())
+        ]))
+
+        num_hidden = 16
+
+        self.dense_net = nn.Sequential(OrderedDict([
+            ('dense_1', nn.Linear(int(num_output_filters * (h / 2**2 / 3) * (w / 2**2 / 3)), num_hidden)),
+            ('dropout_1', nn.Dropout(0.5)),
+            ('dense_2', nn.Linear(num_hidden, num_actions)),
+            ('dropout_1', nn.Dropout(0.5))
+        ]))
+
+    def forward(self, x):
+        return self.dense_net(self.conv_net(x))
+
+
+class DeepQNet6(nn.Module):
+    def __init__(self, h, w, image_stack, num_actions):
+        super().__init__()
+
+        num_output_filters = 16
+
+        self.conv_net = nn.Sequential(OrderedDict([
+            ('conv2d_1',
+             nn.Conv2d(image_stack, 4, kernel_size=(3, 3), stride=(1, 1), padding='same', padding_mode='zeros')),
+            ('relu_1', nn.ReLU()),
+            ('max2d_pooling_1', nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))),
+            ('dropout_1', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('conv2d_2', nn.Conv2d(4, 8, kernel_size=(3, 3), stride=(1, 1), padding='same',
+                                   padding_mode='zeros')),
+            ('relu_2', nn.ReLU()),
+            ('max2d_pooling_2', nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))),
+            ('dropout_2', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('conv2d_3', nn.Conv2d(8, num_output_filters, kernel_size=(3, 3), stride=(1, 1), padding='same',
+                                   padding_mode='zeros')),
+            ('relu_3', nn.ReLU()),
+            ('max2d_pooling_3', nn.MaxPool2d(kernel_size=(3, 3), stride=(3, 3))),
+            ('dropout_3', nn.Dropout(np.random.normal(0.2, 0.05))),
+
+            ('flatten', nn.Flatten())
+        ]))
+
+        num_hidden = 32
+
+        self.dense_net = nn.Sequential(OrderedDict([
+            ('dense_1', nn.Linear(int(num_output_filters * (h / 2**2 / 3) * (w / 2**2 / 3)), num_hidden)),
+            ('dropout_1', nn.Dropout(0.5)),
+            ('dense_2', nn.Linear(num_hidden, num_actions)),
+            ('dropout_1', nn.Dropout(0.5))
+        ]))
+
+    def forward(self, x):
+        return self.dense_net(self.conv_net(x))
 
 
 # This model is using a batch normalization layer.
@@ -310,22 +414,22 @@ alpha = 0.00025
 gamma = 0.99
 eps, eps_decay = 1.0, 0.999
 # Original values:
-max_train_episodes = 1000000
-max_test_episodes = 10
-max_train_frames = 10000
-burn_in_phase = 50000
+# max_train_episodes = 1000000
+# max_test_episodes = 10
+# max_train_frames = 10000
+# burn_in_phase = 50000
 
 # Test values:
-# max_train_episodes = 200  # TODO: change back to original value 1000000
-# max_test_episodes = 5   # TODO: change back to original value 10
-# max_train_frames = 100  # TODO: change back to original 10000
-# burn_in_phase = 50000  # TODO: change back to original value 50000
+max_train_episodes = 250  # TODO: change back to original value 1000000
+max_test_episodes = 10   # TODO: change back to original value 10
+max_train_frames = 10000  # TODO: change back to original 10000
+burn_in_phase = 50000  # TODO: change back to original value 50000
 
 sync_target = 10000
 curr_step = 0
 buffer = ExperienceReplayMemory(50000)  # TODO: set to original value = 50000
 
-online_dqn = DeepQNet3(h, w, image_stack, num_actions)
+online_dqn = DeepQNet6(h, w, image_stack, num_actions)
 target_dqn = copy.deepcopy(online_dqn)
 for param in target_dqn.conv_net.parameters():
     param.requires_grad = False
@@ -472,7 +576,7 @@ def __test():
         update_metrics(test_metrics, episode_metrics)
         print_metrics(it + 1, test_metrics, is_training=False)
         filepath = path.join(getcwd(), f"output/test_plot_iteration_{it + 1}")
-        plot_test_episode(filepath, np.arange(1, max_train_frames + 1), accumulated_rewards)
+        plot_test_episode(filepath, np.arange(1, len(accumulated_rewards) + 1), accumulated_rewards)
 
 
 if __name__ == '__main__':
